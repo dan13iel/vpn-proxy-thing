@@ -11,6 +11,8 @@ async def send_commands():
             command = input("Enter command/data to send: ")
             await websocket.send(command)
             print(f"Sent: {command}")
+            response = await websocket.recv()
+            print(f"Received from server: {response}")
 
 if __name__ == "__main__":
     asyncio.run(send_commands())
