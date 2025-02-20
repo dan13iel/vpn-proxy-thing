@@ -7,15 +7,16 @@ from Crypto.Util.Padding import pad, unpad
 
 # Simple AES encryption/decryption
 def encrypt(data, key):
+    # Pad the data to ensure it's a multiple of AES block size (16 bytes)
     cipher = AES.new(key, AES.MODE_CBC)
     ct_bytes = cipher.encrypt(pad(data.encode(), AES.block_size))
     return cipher.iv + ct_bytes  # prepend iv for decryption
 
 def decrypt(encrypted_data, key):
-    iv = encrypted_data[:16]
-    ct = encrypted_data[16:]
+    iv = encrypted_data[:16]  # Extract the IV (first 16 bytes)
+    ct = encrypted_data[16:]  # The rest is the ciphertext
     cipher = AES.new(key, AES.MODE_CBC, iv)
-    return unpad(cipher.decrypt(ct), AES.block_size).decode()
+    return unpad(cipher.decrypt(ct), AES.block_size).decode()  # Unpad after decrypting
 
 # Simple VPN Server Class
 class SimpleVPNServer:
@@ -42,7 +43,7 @@ class SimpleVPNServer:
         try:
             # Perform a basic handshake, you can replace it with any authentication method
             client_socket.send("WELCOME_TO_VPN_SERVER".encode())
-            
+
             while True:
                 encrypted_data = client_socket.recv(1024)
                 if not encrypted_data:
