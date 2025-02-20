@@ -116,7 +116,7 @@ async def handle_request(request_data):
         logger.error(f"Unexpected error: {str(e)}")
         return {'error': f'Unexpected error: {str(e)}', 'status_code': 500}
 
-async def handle_client_connection(websocket, path):
+async def handle_client_connection(websocket):
     """Handle WebSocket client connection"""
     client_info = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
     logger.info(f"Client connected from {client_info}")
@@ -155,7 +155,7 @@ async def handle_client_connection(websocket, path):
     except websockets.exceptions.ConnectionClosed as e:
         logger.info(f"Client {client_info} disconnected: {e}")
 
-async def health_check(websocket, path):
+async def health_check(websocket):
     """Simple health check endpoint"""
     await websocket.send(json.dumps({"status": "ok", "timestamp": time.time()}))
 
