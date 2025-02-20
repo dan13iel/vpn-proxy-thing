@@ -24,3 +24,8 @@ Considerations:
 - Local proxy implementation
 - Authentication and security considerations
 - Performance optimization ideas
+
+
+Comands:
+
+python 'prototype v3/client.py' --ws-server 'ws://127.0.0.1:8765'
