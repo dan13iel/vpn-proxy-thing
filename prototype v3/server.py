@@ -10,6 +10,10 @@ import requests
 from requests.exceptions import RequestException, Timeout, TooManyRedirects
 import sys
 import time
+import uuid
+import socket
+import ssl
+import threading
 
 # Configure logging
 logging.basicConfig(
@@ -19,11 +23,164 @@ logging.basicConfig(
 )
 logger = logging.getLogger('proxy-server')
 
-# Global flag for graceful shutdown
+# Global flags and state
 running = True
+active_tunnels = {}  # Store active tunnels: {tunnel_id: TunnelState}
+
+class TunnelState:
+    """Class to manage the state of an active tunnel"""
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self.socket = None
+        self.reader = None
+        self.writer = None
+        self.relay_task = None
+        self.lock = asyncio.Lock()
+        self.closing = False
+    
+    async def setup(self):
+        """Establish the connection to the target server"""
+        try:
+            self.reader, self.writer = await asyncio.open_connection(
+                self.host, self.port)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to connect to {self.host}:{self.port} - {e}")
+            return False
+    
+    async def close(self):
+        """Close the tunnel connection cleanly"""
+        async with self.lock:
+            if self.closing:
+                return
+            self.closing = True
+            
+        if self.writer:
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception as e:
+                logger.debug(f"Error closing writer: {e}")
+        
+        # Cancel relay task if active
+        if self.relay_task and not self.relay_task.done():
+            self.relay_task.cancel()
+            try:
+                await self.relay_task
+            except asyncio.CancelledError:
+                pass
+
+async def handle_tunnel_data(websocket, tunnel_id, data_b64):
+    """Handle data from client to forward to tunnel target"""
+    if tunnel_id not in active_tunnels:
+        logger.warning(f"Received data for non-existent tunnel: {tunnel_id}")
+        return {'error': 'Tunnel not found', 'tunnel_id': tunnel_id}
+    
+    tunnel = active_tunnels[tunnel_id]
+    try:
+        # Decode data
+        data = base64.b64decode(data_b64)
+        
+        # Send to target server
+        tunnel.writer.write(data)
+        await tunnel.writer.drain()
+        return None  # No immediate response needed
+    except Exception as e:
+        logger.error(f"Error forwarding data to tunnel {tunnel_id}: {e}")
+        return {'error': str(e), 'tunnel_id': tunnel_id, 'action': 'close'}
+
+async def start_tunnel_relay(websocket, tunnel_id):
+    """Start relay task for server->client direction"""
+    if tunnel_id not in active_tunnels:
+        return
+
+    tunnel = active_tunnels[tunnel_id]
+    
+    try:
+        buffer_size = 8192
+        while True:
+            try:
+                # Read from target server
+                data = await tunnel.reader.read(buffer_size)
+                if not data:
+                    logger.debug(f"Tunnel {tunnel_id} remote server closed connection")
+                    break
+                
+                # Send to client via WebSocket
+                response = {
+                    'tunnel_id': tunnel_id,
+                    'data': base64.b64encode(data).decode('ascii')
+                }
+                await websocket.send(json.dumps(response))
+            except asyncio.CancelledError:
+                logger.debug(f"Tunnel relay {tunnel_id} was cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in tunnel relay {tunnel_id}: {e}")
+                break
+    finally:
+        # Close tunnel when relay ends
+        await close_tunnel(websocket, tunnel_id)
+
+async def setup_tunnel(websocket, request_data):
+    """Set up an HTTPS tunnel"""
+    host = request_data.get('tunnel_host')
+    port = request_data.get('tunnel_port')
+    
+    if not host or not port:
+        logger.error("Missing tunnel host or port in CONNECT request")
+        return {'status': 'error', 'error': 'Missing tunnel host or port'}
+    
+    # Generate a unique tunnel ID
+    tunnel_id = str(uuid.uuid4())
+    
+    # Create tunnel state
+    tunnel = TunnelState(host, port)
+    
+    # Connect to the target server
+    connected = await tunnel.setup()
+    if not connected:
+        return {'status': 'error', 'error': f"Failed to connect to {host}:{port}"}
+    
+    # Store the tunnel
+    active_tunnels[tunnel_id] = tunnel
+    
+    # Start relay task for server->client direction
+    tunnel.relay_task = asyncio.create_task(start_tunnel_relay(websocket, tunnel_id))
+    
+    logger.info(f"Tunnel {tunnel_id} established to {host}:{port}")
+    return {'status': 'connected', 'tunnel_id': tunnel_id}
+
+async def close_tunnel(websocket, tunnel_id):
+    """Close an active tunnel"""
+    if tunnel_id in active_tunnels:
+        tunnel = active_tunnels[tunnel_id]
+        
+        # Close the connection
+        await tunnel.close()
+        
+        # Remove from active tunnels
+        del active_tunnels[tunnel_id]
+        
+        # Notify client
+        try:
+            close_msg = {
+                'tunnel_id': tunnel_id,
+                'action': 'close'
+            }
+            await websocket.send(json.dumps(close_msg))
+        except Exception as e:
+            logger.debug(f"Failed to send tunnel close notification: {e}")
+        
+        logger.info(f"Tunnel {tunnel_id} closed")
 
 async def handle_request(request_data):
     """Process HTTP request and return response"""
+    # Check if this is a CONNECT tunnel request
+    if request_data.get('method') == 'CONNECT' and 'tunnel_host' in request_data:
+        return None  # Tunnel requests are handled separately
+    
     # Extract request parameters
     url = request_data.get('url')
     if not url:
@@ -121,13 +278,41 @@ async def handle_client_connection(websocket):
     client_info = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
     logger.info(f"Client connected from {client_info}")
     
+    # Track tunnels opened by this client
+    client_tunnels = set()
+    
     try:
         async for message in websocket:
             try:
                 # Parse request data from JSON
                 request_data = json.loads(message)
                 
-                # Log request info
+                # Check if this is a tunnel message
+                if 'tunnel_id' in request_data:
+                    tunnel_id = request_data['tunnel_id']
+                    
+                    # Check for tunnel close request
+                    if request_data.get('action') == 'close':
+                        await close_tunnel(websocket, tunnel_id)
+                        continue
+                    
+                    # Handle tunnel data forwarding
+                    if 'data' in request_data:
+                        result = await handle_tunnel_data(
+                            websocket, tunnel_id, request_data['data'])
+                        if result:
+                            await websocket.send(json.dumps(result))
+                        continue
+                
+                # Check if this is a CONNECT tunnel setup request
+                if request_data.get('method') == 'CONNECT' and 'tunnel_host' in request_data:
+                    result = await setup_tunnel(websocket, request_data)
+                    if 'tunnel_id' in result and result['status'] == 'connected':
+                        client_tunnels.add(result['tunnel_id'])
+                    await websocket.send(json.dumps(result))
+                    continue
+                
+                # Normal HTTP request handling
                 url = request_data.get('url', 'unknown')
                 method = request_data.get('method', 'GET')
                 logger.debug(f"Processing {method} request to: {url}")
@@ -154,59 +339,84 @@ async def handle_client_connection(websocket):
                 
     except websockets.exceptions.ConnectionClosed as e:
         logger.info(f"Client {client_info} disconnected: {e}")
+    finally:
+        # Close any tunnels opened by this client
+        for tunnel_id in list(client_tunnels):
+            await close_tunnel(websocket, tunnel_id)
 
 async def health_check(websocket):
     """Simple health check endpoint"""
     await websocket.send(json.dumps({"status": "ok", "timestamp": time.time()}))
 
-async def start_server(host, port, health_check_port=None):
-    """Start WebSocket server with optional health check endpoint"""
+async def start_server(host, port, health_check_port=None, ssl_context=None):
+    """Start WebSocket server with optional health check endpoint and SSL support"""
     global running
     
     # Main WebSocket server
     main_server = await websockets.serve(
-        handle_client_connection, host, port
+        handle_client_connection, 
+        host, 
+        port,
+        ssl=ssl_context
     )
-    logger.info(f"WebSocket proxy server started on ws://{host}:{port}")
     
     # Optional health check server
     health_server = None
     if health_check_port:
-        health_server = await websockets.serve(
-            health_check, host, health_check_port
-        )
-        logger.info(f"Health check endpoint available at ws://{host}:{health_check_port}")
+        try:
+            health_path = '/health'
+            health_server = await websockets.serve(
+                health_check,
+                host,
+                health_check_port
+            )
+            logger.info(f"Health check endpoint available at ws://{host}:{health_check_port}{health_path}")
+        except Exception as e:
+            logger.error(f"Failed to start health check server: {e}")
     
-    # Keep running until shutdown
-    while running:
-        await asyncio.sleep(1)
+    logger.info(f"WebSocket proxy server started on {'wss' if ssl_context else 'ws'}://{host}:{port}")
     
-    # Graceful shutdown
-    logger.info("Shutting down WebSocket servers...")
-    main_server.close()
-    await main_server.wait_closed()
-    
-    if health_server:
-        health_server.close()
-        await health_server.wait_closed()
-    
-    logger.info("Server shutdown complete")
+    # Keep server running
+    try:
+        while running:
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        # Clean shutdown
+        main_server.close()
+        await main_server.wait_closed()
+        
+        if health_server:
+            health_server.close()
+            await health_server.wait_closed()
 
 def signal_handler(sig, frame):
     """Handle termination signals"""
     global running
-    logger.info("Received shutdown signal")
+    logger.info("Shutting down...")
     running = False
+    
+    # Close all active tunnels
+    for tunnel_id in list(active_tunnels.keys()):
+        asyncio.run_coroutine_threadsafe(
+            close_tunnel(None, tunnel_id),
+            asyncio.get_event_loop()
+        )
 
 def main():
     """Main entry point with command line argument parsing"""
-    parser = argparse.ArgumentParser(description='WebSocket Proxy Server')
-    parser.add_argument('--host', default='0.0.0.0',
-                        help='Server host (default: 0.0.0.0)')
-    parser.add_argument('--port', type=int, default=8765,
-                        help='Server port (default: 8765)')
-    parser.add_argument('--health-port', type=int,
+    parser = argparse.ArgumentParser(description='WebSocket-based HTTP Proxy Server')
+    parser.add_argument('--host', default='0.0.0.0', 
+                        help='Bind address (default: 0.0.0.0)')
+    parser.add_argument('--port', type=int, default=8765, 
+                        help='WebSocket server port (default: 8765)')
+    parser.add_argument('--health-port', type=int, 
                         help='Health check endpoint port (optional)')
+    parser.add_argument('--ssl-cert', 
+                        help='SSL certificate file path for HTTPS support')
+    parser.add_argument('--ssl-key', 
+                        help='SSL private key file path for HTTPS support')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging')
     
@@ -220,12 +430,33 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Start the server
+    # Configure SSL if certificate and key are provided
+    ssl_context = None
+    if args.ssl_cert and args.ssl_key:
+        try:
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.load_cert_chain(args.ssl_cert, args.ssl_key)
+            logger.info(f"SSL enabled with certificate: {args.ssl_cert}")
+        except Exception as e:
+            logger.error(f"Failed to load SSL certificates: {e}")
+            return 1
+    
+    # Start the WebSocket server
     try:
-        asyncio.run(start_server(args.host, args.port, args.health_port))
+        asyncio.run(start_server(
+            args.host, 
+            args.port, 
+            args.health_port,
+            ssl_context
+        ))
+    except KeyboardInterrupt:
+        logger.info("Server stopped by keyboard interrupt")
     except Exception as e:
         logger.error(f"Server error: {e}")
-        sys.exit(1)
+        return 1
+    
+    logger.info("Server shut down successfully")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

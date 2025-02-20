@@ -12,6 +12,7 @@ import sys
 import argparse
 import time
 import signal
+import socket
 
 # Configure logging
 logging.basicConfig(
@@ -100,7 +101,6 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 for mime in ['application/json', 'text/', 'application/xml', 'application/javascript']
             )
         }
-        print("data sent")
         return request_data
     
     async def _send_ws_request(self, request_data):
@@ -207,10 +207,147 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
         self.do_METHOD('PATCH')
     
     def do_CONNECT(self):
-        """Handle CONNECT method for HTTPS tunneling - simplified implementation"""
-        # For a complete implementation, this would establish a tunnel
-        # But for simplicity, we'll just report it's not supported
-        self.send_error(501, "HTTPS tunneling not yet supported")
+        """Handle CONNECT method for HTTPS tunneling"""
+        if not connect_event.is_set():
+            self.send_error(503, "WebSocket connection to server not available")
+            return
+            
+        # Parse target address
+        try:
+            host_port = self.path.split(':')
+            if len(host_port) != 2:
+                self.send_error(400, "Invalid CONNECT path format")
+                return
+                
+            host, port = host_port[0], int(host_port[1])
+            logger.info(f"CONNECT tunnel request to {host}:{port}")
+            
+            # Create request data for tunnel setup
+            tunnel_request = {
+                'method': 'CONNECT',
+                'tunnel_host': host,
+                'tunnel_port': port,
+                'headers': {k: v for k, v in self.headers.items() 
+                           if k.lower() not in ['proxy-connection', 'connection']}
+            }
+            
+            # Set up tunnel through WebSocket
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Send tunnel request
+            try:
+                # Request tunnel setup
+                with ws_lock:
+                    if not ws_client:
+                        self.send_error(503, "WebSocket connection lost")
+                        loop.close()
+                        return
+                        
+                    async def setup_tunnel():
+                        await ws_client.send(json.dumps(tunnel_request))
+                        response_json = await ws_client.recv()
+                        return json.loads(response_json)
+                        
+                    tunnel_response = loop.run_until_complete(setup_tunnel())
+                    
+                    # Check tunnel setup response
+                    if tunnel_response.get('status') != 'connected':
+                        self.send_error(502, f"Tunnel setup failed: {tunnel_response.get('error', 'Unknown error')}")
+                        loop.close()
+                        return
+                    
+                    # Tunnel ID for this connection
+                    tunnel_id = tunnel_response.get('tunnel_id')
+                    if not tunnel_id:
+                        self.send_error(502, "No tunnel ID received")
+                        loop.close()
+                        return
+                        
+                    # Tell the client that tunnel is established
+                    self.send_response(200, 'Connection Established')
+                    self.send_header('Connection', 'keep-alive')
+                    self.send_header('Proxy-Connection', 'keep-alive')
+                    self.end_headers()
+                    
+                    # Set up bidirectional data relay
+                    async def relay_client_to_server():
+                        try:
+                            buffer_size = 8192
+                            while True:
+                                # Read from client
+                                try:
+                                    client_data = self.rfile.read(buffer_size)
+                                    if not client_data:
+                                        break
+                                except (ConnectionError, BrokenPipeError) as e:
+                                    logger.debug(f"Client connection closed: {e}")
+                                    break
+                                
+                                # Send to server via WebSocket
+                                data_msg = {
+                                    'tunnel_id': tunnel_id,
+                                    'data': base64.b64encode(client_data).decode('ascii')
+                                }
+                                await ws_client.send(json.dumps(data_msg))
+                        except Exception as e:
+                            logger.error(f"Error in client->server relay: {e}")
+                        
+                        # Send tunnel close notification
+                        try:
+                            close_msg = {
+                                'tunnel_id': tunnel_id,
+                                'action': 'close'
+                            }
+                            await ws_client.send(json.dumps(close_msg))
+                        except Exception:
+                            pass
+                    
+                    async def relay_server_to_client():
+                        try:
+                            while True:
+                                response = await ws_client.recv()
+                                response_data = json.loads(response)
+                                
+                                # Check if this is data for our tunnel
+                                if response_data.get('tunnel_id') != tunnel_id:
+                                    continue
+                                
+                                # Check for tunnel closure
+                                if response_data.get('action') == 'close':
+                                    logger.debug(f"Tunnel {tunnel_id} closed by server")
+                                    break
+                                
+                                # Process data
+                                if 'data' in response_data:
+                                    try:
+                                        server_data = base64.b64decode(response_data['data'])
+                                        self.wfile.write(server_data)
+                                        self.wfile.flush()
+                                    except (ConnectionError, BrokenPipeError) as e:
+                                        logger.debug(f"Client connection closed: {e}")
+                                        break
+                        except Exception as e:
+                            logger.error(f"Error in server->client relay: {e}")
+
+                    # Run both relays concurrently
+                    async def run_relays():
+                        await asyncio.gather(
+                            relay_client_to_server(),
+                            relay_server_to_client()
+                        )
+                    
+                    loop.run_until_complete(run_relays())
+                    
+            except Exception as e:
+                logger.error(f"Tunnel error: {e}")
+                self.send_error(502, f"Tunnel error: {str(e)}")
+            finally:
+                loop.close()
+                
+        except Exception as e:
+            logger.error(f"CONNECT handler error: {e}")
+            self.send_error(500, f"Internal error: {str(e)}")
 
 async def websocket_client_task(server_url, retry_interval=5):
     """Maintain a persistent WebSocket connection to the server"""
