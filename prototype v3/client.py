@@ -100,7 +100,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 for mime in ['application/json', 'text/', 'application/xml', 'application/javascript']
             )
         }
-        
+        print("data sent")
         return request_data
     
     async def _send_ws_request(self, request_data):
