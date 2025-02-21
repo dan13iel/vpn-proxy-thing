@@ -1,4 +1,6 @@
 # client.py
+# This is not the final code.
+# This is a simpilfied version that is going to run to test the UI and to quickly prototype new high level features.
 
 import json
 import asyncio
