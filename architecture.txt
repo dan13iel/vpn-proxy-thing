@@ -29,3 +29,6 @@ Considerations:
 Comands:
 
 python 'prototype v3/client.py' --ws-server 'ws://127.0.0.1:8765'
+
+
+well done with the ai daniel
