@@ -12,3 +12,5 @@ class Logger:
         self.critical = self.logger.critical
         self.exception = self.logger.exception
         self.disable = self.logger.disable
+
+    
