@@ -8,17 +8,23 @@
 # all communication between client.py and server.py should be encrypted
 # ------ END ------
 
+# -------------- for copy
+# ---------------------------- IMPORTS ----------------------------
+
 from internetkit.sockets.server import SockServer
 from utils import Logger, config_log
+import exceptions
 import functools
 import logging
 import defer
 import time
 import sys
 
+# ---------------------------- CONSTANTS ----------------------------
 # TRUE MEANS ACTIVE
 TEST = True
 DEBUG = True
+RAISE_EXCEPTIONS = True
 
 if TEST:
     HOST = '127.0.0.1'
@@ -27,12 +33,71 @@ elif not TEST:
     HOST = '0.0.0.0'
     PORT = 467
 
+def raise_exp(given_exception, /, *a, **k):
+    if RAISE_EXCEPTIONS:
+        raise given_exception(*a, **k)
+    else:
+        _server_logger.debug(f'silenced exception {str(a)}')
+
+# ---------------------------- LOGGING ----------------------------
+
 # CREATE LOGGER
 _server_logger = Logger('server')
 config_log('server.log', level=(logging.DEBUG if DEBUG else logging.WARNING))
 
 # DEBUG MESSAGE
 _server_logger.debug('If this message is logged, DEBUG is active. Turn this off in production use.')
+
+# ---------------------------- HANDLE CLIENT ----------------------------
+
+@defer.defers_collector
+def handle_io(conn, addr, parts):
+    pass # todo: process request and return appropriate content to client.
+
+@defer.defers_collector
+def handle_client(conn, addr):
+    defer.defer(conn.close)
+    adinfo = f'CLIENT[{addr[0]}]@[{addr[1]}]: '
+
+    defer.defer(
+        functools.partial(
+            _server_logger.info,
+            adinfo + '(attempt) connection termin now.'
+        )
+    )
+
+    # ready for urls
+    conn.send('COMMAND:READY')
+    _server_logger.info(adinfo + 'sent ready')
+
+    while 1:
+        recvd = conn.recv()
+
+        if recvd == "FINISH":
+            _server_logger.info(adinfo + f'client terminated')
+            break
+
+        parts = recvd.split(':')
+        if len(parts) != 2:
+            _server_logger.error(adinfo + 'client response - invalid formatting')
+            raise_exp(exceptions.InvalidResponse, 'The client failed to respond with valid formatting.')
+            break
+        else:
+            if parts[0] == 'ERROR':
+                _server_logger.error(adinfo + f'client response - error given to server {parts[1]}')
+                raise_exp(exceptions.ClientRespondedError, 'The client responded with error')
+                break
+            elif not (parts[0] in ['URL']):
+                _server_logger.error(adinfo + f'invalid command - given command was {parts[0]}, given args was {parts[1]}')
+                raise_exp(exceptions.InvalidCommand, f'The client gave an invalid command {parts[0]}, with {parts[1]} as args')
+                break
+            else:
+                _server_logger.debug(adinfo + f'excpected and recieved command {parts[0]} with args {parts[1]}')
+                handle_io(conn, addr, parts) # pass to io handling
+    
+    return
+
+# ---------------------------- MAIN ----------------------------
 
 @defer.defers_collector
 def main():
@@ -45,7 +110,18 @@ def main():
         )
     )
 
-    #assert 3 == 4;
+    server = SockServer(HOST, PORT)
+    defer.defer(server.close)
+    server.setup()
+    server.start()
+    server.loop(handle_client)
+
+    while 1:
+        pass # mainloop. do whatever you want here, the servers are threaded.
+
+# ---------------------------- RUN ----------------------------
 
 if __name__ == "__main__":
     main()
+
+    # do not add stuff here!
