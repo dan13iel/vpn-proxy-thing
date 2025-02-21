@@ -21,10 +21,11 @@ import time
 import sys
 
 # ---------------------------- CONSTANTS ----------------------------
-# TRUE MEANS ACTIVE
-TEST = True
-DEBUG = True
-RAISE_EXCEPTIONS = True
+# ** TRUE MEANS ACTIVE, FALSE MEANS INACTIVE **
+TEST = True #               host server on localhost:8080, rather than 0.0.0.0:457 (the default production port).
+DEBUG = True #              enable debug and info log levels. behavior can be adjusted in the LOGGING section of this file.
+RAISE_EXCEPTIONS = True #   raise exceptions when errors occour, as well as logging them. do not enable in production.
+ALLOW_ECHO = True #         allow the ECHO command for testing.
 
 if TEST:
     HOST = '127.0.0.1'
@@ -38,6 +39,13 @@ def raise_exp(given_exception, /, *a, **k):
         raise given_exception(*a, **k)
     else:
         _server_logger.debug(f'silenced exception {str(a)}')
+
+VALIDCMDS = [
+    'URL'
+]
+
+if ALLOW_ECHO:
+    VALIDCMDS.append('ECHO')
 
 # ---------------------------- LOGGING ----------------------------
 
@@ -87,13 +95,17 @@ def handle_client(conn, addr):
                 _server_logger.error(adinfo + f'client response - error given to server {parts[1]}')
                 raise_exp(exceptions.ClientRespondedError, 'The client responded with error')
                 break
-            elif not (parts[0] in ['URL']):
+            elif not (parts[0] in VALIDCMDS):
                 _server_logger.error(adinfo + f'invalid command - given command was {parts[0]}, given args was {parts[1]}')
                 raise_exp(exceptions.InvalidCommand, f'The client gave an invalid command {parts[0]}, with {parts[1]} as args')
                 break
             else:
                 _server_logger.debug(adinfo + f'excpected and recieved command {parts[0]} with args {parts[1]}')
-                handle_io(conn, addr, parts) # pass to io handling
+                if parts[0] == 'URL':
+                    handle_io(conn, addr, parts) # pass to io handling
+                elif (parts[0] == 'ECHO') and (ALLOW_ECHO):
+                    _server_logger.debug(adinfo + f'echo command given with text {parts[1]}')
+                    conn.send(parts[1])
     
     return
 

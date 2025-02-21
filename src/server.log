@@ -16,3 +16,54 @@ INFO:server:CLIENT[127.0.0.1]@[55523]: sent ready
 INFO:server:CLIENT[127.0.0.1]@[55523]: client terminated
 INFO:server:CLIENT[127.0.0.1]@[55523]: (attempt) connection termin now.
 DEBUG:server:-- END EXE TIME 1740129097.726791 --
+DEBUG:server:If this message is logged, DEBUG is active. Turn this off in production use.
+DEBUG:server:-- START EXE TIME 1740129602.1325598 --
+INFO:server:CLIENT[127.0.0.1]@[56085]: sent ready to client
+ERROR:server:CLIENT[127.0.0.1]@[56085]: client response - invalid formatting
+INFO:server:CLIENT[127.0.0.1]@[56085]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[56174]: sent ready to client
+ERROR:server:CLIENT[127.0.0.1]@[56174]: client response - invalid formatting
+INFO:server:CLIENT[127.0.0.1]@[56174]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[56197]: sent ready to client
+ERROR:server:CLIENT[127.0.0.1]@[56197]: client response - invalid formatting
+INFO:server:CLIENT[127.0.0.1]@[56197]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[56220]: sent ready to client
+DEBUG:server:CLIENT[127.0.0.1]@[56220]: excpected and recieved command URL with args boohoo
+DEBUG:server:CLIENT[127.0.0.1]@[56220]: excpected and recieved command URL with args moondonkey
+INFO:server:CLIENT[127.0.0.1]@[56220]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[56220]: (attempt) connection termin now.
+DEBUG:server:-- END EXE TIME 1740129602.13259 --
+DEBUG:server:If this message is logged, DEBUG is active. Turn this off in production use.
+DEBUG:server:-- START EXE TIME 1740130176.997717 --
+INFO:server:CLIENT[127.0.0.1]@[56939]: sent ready to client
+DEBUG:server:CLIENT[127.0.0.1]@[56939]: excpected and recieved command ECHO with args hello
+DEBUG:server:CLIENT[127.0.0.1]@[56939]: echo command given with text hello
+INFO:server:CLIENT[127.0.0.1]@[56939]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[56939]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[57006]: sent ready to client
+ERROR:server:CLIENT[127.0.0.1]@[57006]: client response - invalid formatting
+INFO:server:CLIENT[127.0.0.1]@[57006]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[57030]: sent ready to client
+DEBUG:server:CLIENT[127.0.0.1]@[57030]: excpected and recieved command ECHO with args HELLO, WORLD
+DEBUG:server:CLIENT[127.0.0.1]@[57030]: echo command given with text HELLO, WORLD
+ERROR:server:CLIENT[127.0.0.1]@[57030]: client response - invalid formatting
+INFO:server:CLIENT[127.0.0.1]@[57030]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[57119]: sent ready to client
+DEBUG:server:CLIENT[127.0.0.1]@[57119]: excpected and recieved command ECHO with args HELLO, WORLD
+DEBUG:server:CLIENT[127.0.0.1]@[57119]: echo command given with text HELLO, WORLD
+ERROR:server:CLIENT[127.0.0.1]@[57119]: client response - invalid formatting
+INFO:server:CLIENT[127.0.0.1]@[57119]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[57142]: sent ready to client
+DEBUG:server:CLIENT[127.0.0.1]@[57142]: excpected and recieved command ECHO with args HELLO, WORLD
+DEBUG:server:CLIENT[127.0.0.1]@[57142]: echo command given with text HELLO, WORLD
+INFO:server:CLIENT[127.0.0.1]@[57211]: sent ready to client
+DEBUG:server:CLIENT[127.0.0.1]@[57211]: excpected and recieved command ECHO with args HELLO, WORLD but client two
+DEBUG:server:CLIENT[127.0.0.1]@[57211]: echo command given with text HELLO, WORLD but client two
+DEBUG:server:CLIENT[127.0.0.1]@[57142]: excpected and recieved command ECHO with args NO WAY
+DEBUG:server:CLIENT[127.0.0.1]@[57142]: echo command given with text NO WAY
+INFO:server:CLIENT[127.0.0.1]@[57142]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[57142]: (attempt) connection termin now.
+DEBUG:server:CLIENT[127.0.0.1]@[57211]: excpected and recieved command ECHO with args STILL WORKS
+DEBUG:server:CLIENT[127.0.0.1]@[57211]: echo command given with text STILL WORKS
+INFO:server:CLIENT[127.0.0.1]@[57211]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[57211]: (attempt) connection termin now.
