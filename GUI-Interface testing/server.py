@@ -23,17 +23,18 @@ def send_request(jsonData):
     # error handling, basically checks if needs for the server are met.
     if not None in [data.get("method"), data.get("url")]:
         # If either method or url does not exist, then it will be none, so if added to a list of can do a 'bulk' AND operation
+
         method = data.get("method")
         url = data.get("url")
+
         if not method in ["GET", "POST"]:
             return None, "003" # error code, no need for exceptions
+        
         try:
             responceData =  requests.request(method, url)
+            return responceData, None # worked
         except Exception as e:
             return None, "000-".join(str(e)) # error code
-
-
-
     else: return None, "001" # error code, no need for exceptions
 
     
@@ -41,7 +42,7 @@ def send_request(jsonData):
 def package_res(responce):
     data = {
         "status_code": responce.status_code,
-        # TODO: add headers
+        #TODO: add headers
         "data": responce.text
     }
 
@@ -52,12 +53,12 @@ async def handle_connection(websocket):
     try:
         async for message in websocket:
             print(f"Received message: {message}")
-            
-            random_number = random.randint(1, 100)
+            result, error = send_request(message)
+            if result == None and error != None:
+                pass
 
-            print(f"Generated random number: {random_number}")
 
-            response = f"{message} | Random number: {random_number}"
+            response = f"{message} | Random number: "
             
             await websocket.send(response)
 
