@@ -45,7 +45,7 @@ def main():
         )
     )
 
-    assert 3 == 4;
+    #assert 3 == 4;
 
 if __name__ == "__main__":
     main()
