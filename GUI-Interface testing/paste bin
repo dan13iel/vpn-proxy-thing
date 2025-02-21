@@ -1,0 +1,13 @@
+Paste useful things in here
+
+I'll start
+
+
+start commands:
+
+python "GUI-Interface testing/server.py"
+python "GUI-Interface testing/client.py"
+
+python "src/client.py"
+python "src/install.py"
+python "src/server.py" (not in use yet)
