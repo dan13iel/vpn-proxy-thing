@@ -492,6 +492,7 @@ import os
 # im trying to call you dan check ur messages
 
 
+# no. this is bad
 os.system("""
 
 pip install websockets
