@@ -41,6 +41,7 @@ def send_request(jsonData):
 
 def package_res(responce):
     data = {
+        "success": True,
         "status_code": responce.status_code,
         #TODO: add headers
         "data": responce.text
@@ -52,15 +53,23 @@ async def handle_connection(websocket):
     print("Client connected")
     try:
         async for message in websocket:
-            print(f"Received message: {message}")
+            print(f"Received message: {message}") # debug
+
             result, error = send_request(message)
-            if result == None and error != None:
-                pass
 
+            if result != None and error == None: # success
+                jsonResponce = package_res(result)
 
-            response = f"{message} | Random number: "
+            elif result == None and error != None: # error
+                jsonResponce = {
+                    "success": False,
+                    "code": error
+                    }
+                jsonResponce = json.dumps(jsonResponce)
+            else:
+                print("Help, the server messed up badly")
             
-            await websocket.send(response)
+            await websocket.send(jsonResponce)
 
     except websockets.ConnectionClosed:
         print("Client disconnected")
