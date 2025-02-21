@@ -4,3 +4,15 @@ DEBUG:server:-- END EXE TIME 1740128210.4016829 --
 DEBUG:server:If this message is logged, DEBUG is active. Turn this off in production use.
 DEBUG:server:-- START EXE TIME 1740128639.1827688 --
 DEBUG:server:-- END EXE TIME 1740128639.1827998 --
+DEBUG:server:If this message is logged, DEBUG is active. Turn this off in production use.
+DEBUG:server:-- START EXE TIME 1740129097.726762 --
+INFO:server:CLIENT[127.0.0.1]@[55477]: sent ready
+INFO:server:CLIENT[127.0.0.1]@[55477]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[55477]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[55522]: sent ready
+INFO:server:CLIENT[127.0.0.1]@[55522]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[55522]: (attempt) connection termin now.
+INFO:server:CLIENT[127.0.0.1]@[55523]: sent ready
+INFO:server:CLIENT[127.0.0.1]@[55523]: client terminated
+INFO:server:CLIENT[127.0.0.1]@[55523]: (attempt) connection termin now.
+DEBUG:server:-- END EXE TIME 1740129097.726791 --

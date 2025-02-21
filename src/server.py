@@ -68,7 +68,7 @@ def handle_client(conn, addr):
 
     # ready for urls
     conn.send('COMMAND:READY')
-    _server_logger.info(adinfo + 'sent ready')
+    _server_logger.info(adinfo + 'sent ready to client')
 
     while 1:
         recvd = conn.recv()
