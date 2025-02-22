@@ -1,0 +1,12 @@
+000-XXXXXXXXXX:
+    An error that was caught in exceptions
+
+
+001:
+    data not fullfilled in the request
+
+002:
+    JSON request data got screwed up when getting sent over websocket (to server)
+
+003:
+    JSON request data sent to server asked for a request to be sent using a protocol that is not on the list of supported/avaliable protocols.

@@ -1,5 +1,8 @@
 import os
 
+# EMAIL ME I HAVE MESSAGES BLOCKED AFTER 9PM
+# I made this public btw that why there is license
+
 # im trying to call you dan check ur messages
 # im trying to call you dan check ur messages
 # im trying to call you dan check ur messages
