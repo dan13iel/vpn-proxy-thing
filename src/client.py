@@ -1,38 +1,50 @@
-# CLIENT means on the USER's computer
-
-# currently this is for initiating a test connection to the server, this will be changed later.
-
-from internetkit.sockets.client import Socket
-import threading
+import multiprocessing as mproc
+import functools
+import logging
+import socket
+import libmem
+import defer
+import utils
 import time
+import csoc
 
-host = 'localhost'
-port = 8080
+DEBUG = True # enable debug and info log levels.
+ADDR = '127.0.0.1'
+PORT = 8080
+NTHREADS = 20
 
-conn = Socket(host, port)
-conn.setup()
-conn.connect()
+_client_logger = utils.Logger('clientsideproxy')
+utils.config_log('client.log', level=(logging.DEBUG if DEBUG else logging.WARNING))
 
-print('Received Message:', conn.recv())
+@defer.defers_collector
+def dpatch(sock):
+    # i love socks
+    sock.listen(0) # no limit to the listening for me, thanks
 
-GLOB_tstop = False
+    act_threads = [False for i in range(NTHREADS)] # 20 concurrent connections are possible
+    all_threads = []
 
-def threadedwait():
-    global conn
-    while 1:
-        if GLOB_tstop:
-            break
-        
-        d =  conn.recv()
-        if d.strip():
-            print('\n', ' r ', d, '\ncommand > ', sep='', end='')
+    for i in range(NTHREADS):
+        act_threads[i] = True
+        notif_done = lambda: act_threads[i] = False
 
-threading.Thread(target=threadedwait).start()
 
-inp = ''
-while inp != 'break':
-    inp = input('command > ')
-    conn.send(inp)
+@defer.defers_collector
+def main():
+    _client_logger.debug(f'-- START EXE TIME {time.time()} --')
 
-conn.send('FINISH')
-conn.close()
+    sock = csoc.gensock()
+    defer.defer(sock.close)
+    sock.bind((ADDR, PORT))
+
+    dpatch(sock) # dispatch sockets
+
+    defer.defer(
+        functools.partial(
+            _client_logger.debug, 
+            f'-- END EXE TIME {time.time()} --'
+        )
+    )
+
+if __name__ == "__main__":
+    main()

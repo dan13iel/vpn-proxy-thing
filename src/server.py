@@ -64,6 +64,10 @@ def handle_io(conn, addr, parts):
 
 @defer.defers_collector
 def handle_client(conn, addr):
+    # HANDLE CLIENT.
+    # DEALS WITH EACH CLIENT FOR THEIR ENTIRE SESSION.
+    # THIS FUNCTION SPECIFICALLY DEALS WITH INITIAL CONNECTION AND COMMANDS
+
     defer.defer(conn.close)
     adinfo = f'CLIENT[{addr[0]}]@[{addr[1]}]: '
 
@@ -82,26 +86,32 @@ def handle_client(conn, addr):
         recvd = conn.recv()
 
         if recvd == "FINISH":
+            # terminate connection
             _server_logger.info(adinfo + f'client terminated')
             break
 
         parts = recvd.split(':')
         if len(parts) != 2:
+            # client sent invalid message
             _server_logger.error(adinfo + 'client response - invalid formatting')
             raise_exp(exceptions.InvalidResponse, 'The client failed to respond with valid formatting.')
             break
         else:
             if parts[0] == 'ERROR':
+                # client sent error
                 _server_logger.error(adinfo + f'client response - error given to server {parts[1]}')
                 raise_exp(exceptions.ClientRespondedError, 'The client responded with error')
                 break
             elif not (parts[0] in VALIDCMDS):
+                # client send invalid command, but message had correct args
                 _server_logger.error(adinfo + f'invalid command - given command was {parts[0]}, given args was {parts[1]}')
                 raise_exp(exceptions.InvalidCommand, f'The client gave an invalid command {parts[0]}, with {parts[1]} as args')
                 break
             else:
-                _server_logger.debug(adinfo + f'excpected and recieved command {parts[0]} with args {parts[1]}')
+                # client message was fine
+                _server_logger.debug(adinfo + f'recieved command {parts[0]} with args {parts[1]}')
                 if parts[0] == 'URL':
+                    # url was provided
                     handle_io(conn, addr, parts) # pass to io handling
                 elif (parts[0] == 'ECHO') and (ALLOW_ECHO):
                     _server_logger.debug(adinfo + f'echo command given with text {parts[1]}')
