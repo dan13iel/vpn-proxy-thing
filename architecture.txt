@@ -1,34 +1,16 @@
-This sounds like an interesting approach to creating a VPN-like solution using WebSockets. Let me help you think through this architecture.
+Actual proxy server under construction
 
-Your approach has some advantages:
-- WebSockets provide a persistent connection with low overhead
-- Using HTTP/HTTPS proxy on localhost simplifies client configuration
-- Bypasses some common VPN protocol implementation complexities
+BROWSER -> PROXY ON CLIENT (client.py) >===encrypted===> SERVER ON CLOUD (server.py) >===request===> WEBSITE
 
-Let me sketch out how this would work technically:
+How it will work for testing
 
-1. Client setup:
-   - Local HTTP/HTTPS proxy server running on localhost (e.g., 127.0.0.1:8080)
-   - WebSocket client connecting to your remote server
-   - Browser/applications configured to use the local proxy
+# unit tests (todo)
+python3 test.py
 
-2. Data flow:
-   - Local application sends HTTP request to localhost proxy
-   - Proxy captures request and forwards it over WebSocket to server
-   - Server receives data, performs the HTTP request to the actual destination
-   - Server sends response back through WebSocket
-   - Client proxy delivers response to the local application
+# run client proxy server
+python3 src/client.py
 
-Considerations:
-- WebSocket client/server code
-- Local proxy implementation
-- Authentication and security considerations
-- Performance optimization ideas
+# run remote proxy for client to connect to
+python3 src/server.py
 
-
-Comands:
-
-python 'prototype v3/client.py' --ws-server 'ws://127.0.0.1:8765'
-
-
-well done with the ai daniel
+set 127.0.0.1:8080 as your PROXY SEVER when running client.py
