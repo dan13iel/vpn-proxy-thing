@@ -67,3 +67,4 @@ DEBUG:server:CLIENT[127.0.0.1]@[57211]: excpected and recieved command ECHO with
 DEBUG:server:CLIENT[127.0.0.1]@[57211]: echo command given with text STILL WORKS
 INFO:server:CLIENT[127.0.0.1]@[57211]: client terminated
 INFO:server:CLIENT[127.0.0.1]@[57211]: (attempt) connection termin now.
+DEBUG:server:-- END EXE TIME 1740130176.997746 --
