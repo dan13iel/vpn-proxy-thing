@@ -16,17 +16,30 @@ NTHREADS = 20
 _client_logger = utils.Logger('clientsideproxy')
 utils.config_log('client.log', level=(logging.DEBUG if DEBUG else logging.WARNING))
 
+def cconworker(thread_id, thread_shared_memory, sock):
+    pass
+
 @defer.defers_collector
 def dpatch(sock):
     # i love socks
     sock.listen(0) # no limit to the listening for me, thanks
 
-    act_threads = [False for i in range(NTHREADS)] # 20 concurrent connections are possible
-    all_threads = []
+    with libmem.AllocatedMemoryWrapper(256) as thread_shared_memory:
+        [thread_shared_memory[i] := 0x00 for i in range(NTHREADS)] # 20 concurrent connections are possible
+        all_threads = []
 
-    for i in range(NTHREADS):
-        act_threads[i] = True
-        notif_done = lambda: act_threads[i] = False
+        for i in range(NTHREADS):
+            thread_shared_memory[i] = 0x01
+            all_threads.append(
+                mproc.Process(
+                    target = functools.partial(
+                        cconworker, # function to call (client connection worker)
+                        i, # thread id for shared memory index
+                        thread_shared_memory, # shared memory
+                        sock # socket
+                    )
+                )
+            )
 
 
 @defer.defers_collector
